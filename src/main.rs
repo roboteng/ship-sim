@@ -1,4 +1,4 @@
-use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
+use bevy::prelude::*;
 
 const FORCE: f32 = 1.0;
 
@@ -11,19 +11,15 @@ fn main() {
         .run();
 }
 
-fn startup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
+fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2dBundle::default());
 
-    // Circle
+    let ship_handle = asset_server.load("ship.png");
     commands.spawn((
-        MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Circle::new(50.).into()).into(),
-            material: materials.add(ColorMaterial::from(Color::PURPLE)),
+        SpriteBundle {
+            texture: ship_handle,
             transform: Transform::from_translation(Vec3::new(-150., 0., 0.)),
+            visibility: Visibility::Visible,
             ..default()
         },
         Ship,
