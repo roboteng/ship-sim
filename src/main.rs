@@ -14,17 +14,29 @@ fn main() {
 fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2dBundle::default());
 
-    let ship_handle = asset_server.load("ship.png");
-    commands.spawn((
-        SpriteBundle {
-            texture: ship_handle,
-            transform: Transform::from_translation(Vec3::new(-150., 0., 0.)),
-            visibility: Visibility::Visible,
-            ..default()
-        },
-        Ship,
-        Velocity::default(),
-    ));
+    commands
+        .spawn((
+            SpriteBundle {
+                texture: asset_server.load("ship.png"),
+                transform: Transform::from_translation(Vec3::new(0., 0., 0.)),
+                visibility: Visibility::Visible,
+                ..default()
+            },
+            Ship,
+            Velocity::default(),
+        ))
+        .with_children(|builder| {
+            builder.spawn((
+                SpriteBundle {
+                    texture: asset_server.load("rudder.png"),
+                    transform: Transform::from_translation(Vec3::new(0., -130., 0.))
+                        .with_scale(Vec3::splat(0.2)),
+                    visibility: Visibility::Visible,
+                    ..default()
+                },
+                Rudder,
+            ));
+        });
 }
 
 fn locations(mut locations: Query<&mut Velocity, With<Ship>>, inputs: Res<Input<KeyCode>>) {
@@ -53,6 +65,9 @@ fn update_velocity(mut t: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
 
 #[derive(Component)]
 struct Ship;
+
+#[derive(Component)]
+struct Rudder;
 
 #[derive(Component, Default)]
 struct Velocity(Vec2);
