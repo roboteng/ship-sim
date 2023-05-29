@@ -33,7 +33,6 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     texture: asset_server.load("rudder.png"),
                     transform: Transform::from_translation(Vec3::new(0., -130., 0.))
                         .with_scale(Vec3::splat(0.2)),
-                    visibility: Visibility::Visible,
                     ..default()
                 },
                 Rudder { angle: 0. },
@@ -72,8 +71,20 @@ fn update_velocity(mut t: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
 
 fn apply_rudder_changes(mut rudders: Query<(&mut Transform, &Rudder)>) {
     for (mut transform, rudder) in rudders.iter_mut() {
-        // transform.rotate_around(Vec3::splat(0.), Quat::from_rotation_z(rudder.angle));
-        transform.rotation = Quat::from_rotation_z(rudder.angle)
+        let mut new =
+            Transform::from_translation(Vec3::new(0., -130., 0.)).with_scale(Vec3::splat(0.2));
+        new.rotate_around(
+            Vec3::new(0., -110., 0.0),
+            Quat::from_rotation_z(rudder.angle),
+        );
+        transform.set_if_neq(new);
+        // transform.rotation = Quat::from_rotation_z(rudder.angle);
+        // let len = 20.;
+        // transform.translation = Vec3::new(
+        //     rudder.angle.cos() * len + 30.,
+        //     -130.0 + rudder.angle.sin() * len - len,
+        //     0.,
+        // );
     }
 }
 
