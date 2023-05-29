@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-const FORCE: f32 = 1.0;
+const FORCE: f32 = 4.0;
 const RUDDER_TURN: f32 = 0.01;
 
 fn main() {
@@ -8,6 +8,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_startup_system(startup)
         .add_system(locations)
+        .add_system(friction)
         .add_system(update_velocity)
         .add_system(apply_rudder_changes)
         .run();
@@ -69,6 +70,16 @@ fn update_velocity(mut t: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
     }
 }
 
+fn friction(mut ships: Query<&mut Velocity, With<Ship>>, time: Res<Time>) {
+    for mut ship in ships.iter_mut() {
+        let mag = ship.0.abs();
+        let a = 0.5;
+        let b = 0.00001;
+        let friction = ship.0 * (a * mag + b * mag * mag) * time.delta_seconds();
+        ship.set_if_neq(Velocity(ship.0 - friction));
+    }
+}
+
 fn apply_rudder_changes(mut rudders: Query<(&mut Transform, &Rudder)>) {
     for (mut transform, rudder) in rudders.iter_mut() {
         let mut new =
@@ -78,13 +89,6 @@ fn apply_rudder_changes(mut rudders: Query<(&mut Transform, &Rudder)>) {
             Quat::from_rotation_z(rudder.angle),
         );
         transform.set_if_neq(new);
-        // transform.rotation = Quat::from_rotation_z(rudder.angle);
-        // let len = 20.;
-        // transform.translation = Vec3::new(
-        //     rudder.angle.cos() * len + 30.,
-        //     -130.0 + rudder.angle.sin() * len - len,
-        //     0.,
-        // );
     }
 }
 
@@ -96,5 +100,5 @@ struct Rudder {
     angle: f32,
 }
 
-#[derive(Component, Default)]
+#[derive(Component, Default, PartialEq)]
 struct Velocity(Vec2);
