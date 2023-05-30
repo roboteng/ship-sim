@@ -1,13 +1,41 @@
 use std::f32::consts::PI;
 
 use bevy::prelude::*;
+use bevy_inspector_egui::{
+    prelude::ReflectInspectorOptions, quick::ResourceInspectorPlugin, InspectorOptions,
+};
 
-const FORCE: f32 = 10.0;
-const RUDDER_TURN: f32 = 0.01;
+// `InspectorOptions` are completely optional
+#[derive(Reflect, Resource, InspectorOptions)]
+#[reflect(Resource, InspectorOptions)]
+struct Configuration {
+    base_thrust: f32,
+    rudder_turn_anount: f32,
+    boat_half_length: f32,
+    friction_linear_term: f32,
+    friction_square_term: f32,
+    rotational_friction: f32,
+}
+
+impl Default for Configuration {
+    fn default() -> Self {
+        Self {
+            base_thrust: 10.0,
+            rudder_turn_anount: 0.01,
+            boat_half_length: 1.0,
+            friction_linear_term: 0.005,
+            friction_square_term: 0.000001,
+            rotational_friction: 5.0,
+        }
+    }
+}
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .init_resource::<Configuration>() // `ResourceInspectorPlugin` won't initialize the resource
+        .register_type::<Configuration>() // you need to register your type to display it
+        .add_plugin(ResourceInspectorPlugin::<Configuration>::default())
         .add_startup_system(startup)
         .add_system(input)
         .add_system(update_velocity)
@@ -43,7 +71,12 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
         });
 }
 
-fn input(mut ships: Query<&mut Ship>, mut rudder: Query<&mut Rudder>, inputs: Res<Input<KeyCode>>) {
+fn input(
+    mut ships: Query<&mut Ship>,
+    mut rudder: Query<&mut Rudder>,
+    inputs: Res<Input<KeyCode>>,
+    constants: Res<Configuration>,
+) {
     let mut rudder = rudder.get_single_mut().unwrap();
     for mut ship in ships.iter_mut() {
         if inputs.pressed(KeyCode::W) {
@@ -52,25 +85,34 @@ fn input(mut ships: Query<&mut Ship>, mut rudder: Query<&mut Rudder>, inputs: Re
             ship.throttle = 0.0;
         }
         if inputs.pressed(KeyCode::A) {
-            rudder.angle -= RUDDER_TURN;
+            rudder.angle -= constants.rudder_turn_anount;
         }
         if inputs.pressed(KeyCode::D) {
-            rudder.angle += RUDDER_TURN;
+            rudder.angle += constants.rudder_turn_anount;
         }
     }
 }
 
-fn update_velocity(mut query: Query<&mut Ship>, rudders: Query<&Rudder>, time: Res<Time>) {
+fn update_velocity(
+    mut query: Query<&mut Ship>,
+    rudders: Query<&Rudder>,
+    time: Res<Time>,
+    constants: Res<Configuration>,
+) {
     let d_t = time.delta_seconds();
     let rudder = rudders.get_single().unwrap();
     for mut ship in query.iter_mut() {
         let thrust_angle = ship.rotation + rudder.angle + PI / 2.0 + PI;
-        let force =
-            Vec2::new(-FORCE * thrust_angle.sin(), FORCE * thrust_angle.cos()) * ship.throttle;
+        let force = Vec2::new(
+            -constants.base_thrust * thrust_angle.sin(),
+            constants.base_thrust * thrust_angle.cos(),
+        ) * ship.throttle;
         ship.velocity += force * d_t;
 
-        let boat_half_length = 1.0;
-        let torque = -rudder.angle.sin() * boat_half_length * FORCE * ship.throttle;
+        let torque = -rudder.angle.sin()
+            * constants.boat_half_length
+            * constants.base_thrust
+            * ship.throttle;
         ship.omega += torque * d_t;
     }
 }
@@ -83,16 +125,15 @@ fn update_position(mut t: Query<(&mut Transform, &Ship)>, time: Res<Time>) {
     }
 }
 
-fn friction(mut ships: Query<&mut Ship>, time: Res<Time>) {
+fn friction(mut ships: Query<&mut Ship>, time: Res<Time>, constants: Res<Configuration>) {
     for mut ship in ships.iter_mut() {
         let mag = ship.velocity.abs();
-        let a = 0.005;
-        let b = 0.000001;
-        let friction = ship.velocity * (a * mag + b * mag * mag) * time.delta_seconds();
+        let friction = ship.velocity
+            * (constants.friction_linear_term * mag + constants.friction_square_term * mag * mag)
+            * time.delta_seconds();
         ship.velocity -= friction;
 
-        let k = 5.0;
-        let rot_friction = ship.omega * k * time.delta_seconds();
+        let rot_friction = ship.omega * constants.rotational_friction * time.delta_seconds();
         ship.omega -= rot_friction;
     }
 }
