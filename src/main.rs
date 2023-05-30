@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use bevy::prelude::*;
 
-const FORCE: f32 = 1000.0;
+const FORCE: f32 = 10.0;
 const RUDDER_TURN: f32 = 0.01;
 
 fn main() {
@@ -68,6 +68,10 @@ fn update_velocity(mut query: Query<&mut Ship>, rudders: Query<&Rudder>, time: R
         let force =
             Vec2::new(-FORCE * thrust_angle.sin(), FORCE * thrust_angle.cos()) * ship.throttle;
         ship.velocity += force * d_t;
+
+        let boat_half_length = 1.0;
+        let torque = -rudder.angle.sin() * boat_half_length * FORCE * ship.throttle;
+        ship.omega += torque * d_t;
     }
 }
 
@@ -75,16 +79,21 @@ fn update_position(mut t: Query<(&mut Transform, &Ship)>, time: Res<Time>) {
     for (mut trans, ship) in t.iter_mut() {
         trans.translation.x += ship.velocity.x * time.delta_seconds();
         trans.translation.y += ship.velocity.y * time.delta_seconds();
+        trans.rotate_axis(Vec3::Z, ship.omega * time.delta_seconds())
     }
 }
 
 fn friction(mut ships: Query<&mut Ship>, time: Res<Time>) {
     for mut ship in ships.iter_mut() {
         let mag = ship.velocity.abs();
-        let a = 0.5;
-        let b = 0.00001;
+        let a = 0.005;
+        let b = 0.000001;
         let friction = ship.velocity * (a * mag + b * mag * mag) * time.delta_seconds();
-        ship.velocity -= friction
+        ship.velocity -= friction;
+
+        let k = 5.0;
+        let rot_friction = ship.omega * k * time.delta_seconds();
+        ship.omega -= rot_friction;
     }
 }
 
@@ -105,6 +114,7 @@ struct Ship {
     throttle: f32,
     rotation: f32,
     velocity: Vec2,
+    omega: f32,
 }
 
 impl Default for Ship {
@@ -115,6 +125,7 @@ impl Default for Ship {
             /// and increasing values move counter-clockwise
             rotation: PI / 2.0,
             velocity: Vec2::default(),
+            omega: 0.0,
         }
     }
 }
