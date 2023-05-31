@@ -1,12 +1,19 @@
-use std::f32::consts::PI;
+use std::io::Write;
+use std::{
+    f32::consts::PI,
+    fs::{read_to_string, OpenOptions},
+};
 
 use bevy::prelude::*;
 use bevy_inspector_egui::{
     prelude::ReflectInspectorOptions, quick::ResourceInspectorPlugin, InspectorOptions,
 };
+use serde::{Deserialize, Serialize};
+
+const CONFIG_PATH: &str = "config.yaml";
 
 // `InspectorOptions` are completely optional
-#[derive(Reflect, Resource, InspectorOptions)]
+#[derive(Reflect, Resource, InspectorOptions, Serialize, Deserialize, Debug)]
 #[reflect(Resource, InspectorOptions)]
 struct Configuration {
     base_thrust: f32,
@@ -31,9 +38,12 @@ impl Default for Configuration {
 }
 
 fn main() {
+    let config_s = read_to_string(CONFIG_PATH).unwrap_or_default();
+    let config = serde_yaml::from_str::<Configuration>(&config_s).unwrap_or_default();
+
     App::new()
         .add_plugins(DefaultPlugins)
-        .init_resource::<Configuration>() // `ResourceInspectorPlugin` won't initialize the resource
+        .insert_resource(config)
         .register_type::<Configuration>() // you need to register your type to display it
         .add_plugin(ResourceInspectorPlugin::<Configuration>::default())
         .add_startup_system(startup)
@@ -42,6 +52,7 @@ fn main() {
         .add_system(friction)
         .add_system(update_position)
         .add_system(apply_rudder_changes)
+        .add_system(save_config)
         .run();
 }
 
@@ -147,6 +158,26 @@ fn apply_rudder_changes(mut rudders: Query<(&mut Transform, &Rudder)>) {
             Quat::from_rotation_z(rudder.angle),
         );
         transform.set_if_neq(new);
+    }
+}
+
+fn save_config(config: Res<Configuration>) {
+    if config.is_changed() {
+        fn write(config: &Configuration) -> Result<(), ()> {
+            let parsed = serde_yaml::to_string(config).map_err(|_| ())?;
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(CONFIG_PATH)
+                .map_err(|_| ())?;
+            write!(file, "{}", parsed).map_err(|_| ())?;
+            Ok(())
+        }
+
+        match write(&config) {
+            Ok(_) => {}
+            Err(_) => eprintln!("Unable to save config.yaml"),
+        }
     }
 }
 

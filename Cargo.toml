@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 bevy = "0.10.1"
 bevy-inspector-egui = "0.18.3"
+serde = {version = "1.0.163", features = ["derive"]}
+serde_yaml = "0.9.21"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

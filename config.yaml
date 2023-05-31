@@ -1,0 +1,6 @@
+base_thrust: 10.0
+rudder_turn_anount: 0.01
+boat_half_length: 1.0
+friction_linear_term: 0.005
+friction_square_term: 0.000001
+rotational_friction: 5.0
