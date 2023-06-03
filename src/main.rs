@@ -115,19 +115,24 @@ fn update_velocity(
     let d_t = time.delta_seconds();
     let rudder = rudders.get_single().unwrap();
     for mut ship in query.iter_mut() {
-        let thrust_angle = ship.rotation + rudder.angle + PI / 2.0 + PI;
-        let force = Vec2::new(
-            -constants.base_thrust * thrust_angle.sin(),
-            constants.base_thrust * thrust_angle.cos(),
-        ) * ship.throttle;
-        ship.velocity += force * d_t;
-
-        let torque = -rudder.angle.sin()
-            * constants.boat_half_length
-            * constants.base_thrust
-            * ship.throttle;
-        ship.omega += torque * d_t;
+        let constants = constants.as_ref();
+        let mut ship = ship.as_mut();
+        update_ship(constants, &mut ship, d_t, rudder);
     }
+}
+
+fn update_ship(constants: &Configuration, ship: &mut Ship, d_t: f32, rudder: &Rudder) {
+    let thrust_angle = ship.rotation + rudder.angle + PI / 2.0 + PI;
+
+    let force = Vec2::new(
+        -constants.base_thrust * thrust_angle.sin(),
+        constants.base_thrust * thrust_angle.cos(),
+    ) * ship.throttle;
+    ship.velocity += force * d_t;
+
+    let torque =
+        -rudder.angle.sin() * constants.boat_half_length * constants.base_thrust * ship.throttle;
+    ship.omega += torque * d_t;
 }
 
 fn update_position(mut t: Query<(&mut Transform, &Ship)>, time: Res<Time>) {
@@ -212,5 +217,21 @@ struct Rudder {
 impl Default for Rudder {
     fn default() -> Self {
         Rudder { angle: -PI / 2.0 }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn boat() {
+        let mut ship = Ship {
+            throttle: 1.0,
+            ..default()
+        };
+        let config = Configuration::default();
+        let rudder = Rudder::default();
+        update_ship(&config, &mut ship, 1. / 60., &rudder);
+        assert!(ship.velocity.y > 0.0);
     }
 }
