@@ -17,7 +17,7 @@ const CONFIG_PATH: &str = "config.yaml";
 #[reflect(Resource, InspectorOptions)]
 struct Configuration {
     base_thrust: f32,
-    rudder_turn_amount: f32,
+    rudder_turn_amount: RadiansPerSec,
     boat_half_length: f32,
     friction_linear_term: f32,
     friction_square_term: f32,
@@ -188,20 +188,23 @@ fn save_config(config: Res<Configuration>) {
     }
 }
 
+/// angles are measured in radians where 0.0 point right
+/// and increasing values move counter-clockwise
+type Radians = f32;
+type RadiansPerSec = f32;
+
 #[derive(Component)]
 struct Ship {
     throttle: f32,
-    rotation: f32,
+    rotation: Radians,
     velocity: Vec2,
-    omega: f32,
+    omega: RadiansPerSec,
 }
 
 impl Default for Ship {
     fn default() -> Self {
         Ship {
             throttle: 0.0,
-            /// angles are measured in radians where 0.0 point right
-            /// and increasing values move counter-clockwise
             rotation: PI / 2.0,
             velocity: Vec2::default(),
             omega: 0.0,
@@ -211,7 +214,7 @@ impl Default for Ship {
 
 #[derive(Component)]
 struct Rudder {
-    angle: f32,
+    angle: Radians,
 }
 
 impl Default for Rudder {
