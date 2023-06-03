@@ -17,22 +17,24 @@ const CONFIG_PATH: &str = "config.yaml";
 #[reflect(Resource, InspectorOptions)]
 struct Configuration {
     base_thrust: f32,
-    rudder_turn_anount: f32,
+    rudder_turn_amount: f32,
     boat_half_length: f32,
     friction_linear_term: f32,
     friction_square_term: f32,
     rotational_friction: f32,
+    save_config: bool,
 }
 
 impl Default for Configuration {
     fn default() -> Self {
         Self {
             base_thrust: 10.0,
-            rudder_turn_anount: 0.01,
+            rudder_turn_amount: 0.01,
             boat_half_length: 1.0,
             friction_linear_term: 0.005,
             friction_square_term: 0.000001,
             rotational_friction: 5.0,
+            save_config: false,
         }
     }
 }
@@ -96,10 +98,10 @@ fn input(
             ship.throttle = 0.0;
         }
         if inputs.pressed(KeyCode::A) {
-            rudder.angle -= constants.rudder_turn_anount;
+            rudder.angle -= constants.rudder_turn_amount;
         }
         if inputs.pressed(KeyCode::D) {
-            rudder.angle += constants.rudder_turn_anount;
+            rudder.angle += constants.rudder_turn_amount;
         }
     }
 }
@@ -162,7 +164,7 @@ fn apply_rudder_changes(mut rudders: Query<(&mut Transform, &Rudder)>) {
 }
 
 fn save_config(config: Res<Configuration>) {
-    if config.is_changed() {
+    if config.is_changed() && config.save_config {
         fn write(config: &Configuration) -> Result<(), ()> {
             let parsed = serde_yaml::to_string(config).map_err(|_| ())?;
             let mut file = OpenOptions::new()
