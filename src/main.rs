@@ -22,6 +22,7 @@ struct Configuration {
     friction_linear_term: f32,
     friction_square_term: f32,
     rotational_friction: f32,
+    #[serde(skip_serializing)]
     save_config: bool,
 }
 
