@@ -209,7 +209,7 @@ impl Ship {
         self.omega += torque * d_t;
 
         self.pos += self.velocity * d_t;
-        self.rotation = self.omega * d_t;
+        self.rotation += self.omega * d_t;
     }
 }
 
@@ -217,7 +217,7 @@ impl Default for Ship {
     fn default() -> Self {
         Ship {
             throttle: 0.0,
-            rotation: PI / 2.0,
+            rotation: 0.0,
             velocity: Vec2::default(),
             omega: 0.0,
             pos: Vec2::default(),
@@ -245,6 +245,7 @@ mod test {
     fn up() {
         let mut ship = Ship {
             throttle: 1.0,
+            rotation: PI / 2.0,
             ..default()
         };
         let config = Configuration::default();
@@ -274,13 +275,57 @@ mod test {
         assert_angles_eq(Vec2::X.angle_between(ship.velocity), PI);
     }
 
+    #[test]
+    fn rotate_rudder_straight() {
+        let mut ship = Ship {
+            throttle: 1.0,
+            ..default()
+        };
+        let config = Configuration::default();
+        let rudder = Rudder::default();
+
+        ship.update(&config, 1.0 / 60.0, &rudder);
+
+        assert_float_absolute_eq!(ship.omega, 0.0);
+    }
+
+    #[test]
+    fn rotate_rudder_left() {
+        let mut ship = Ship {
+            throttle: 1.0,
+            ..default()
+        };
+        let config = Configuration::default();
+        let rudder = Rudder {
+            angle: -PI * 3.0 / 4.0,
+        };
+
+        ship.update(&config, 1.0 / 60.0, &rudder);
+
+        assert!(ship.omega > 0.0);
+    }
+
+    #[test]
+    fn rotate_rudder_right() {
+        let mut ship = Ship {
+            throttle: 1.0,
+            ..default()
+        };
+        let config = Configuration::default();
+        let rudder = Rudder { angle: -PI / 4.0 };
+
+        ship.update(&config, 1.0 / 60.0, &rudder);
+
+        assert!(ship.omega < 0.0);
+    }
+
     fn assert_angles_eq(a: f32, b: f32) {
         let epsilon = 1e-6;
 
         assert!(((a - b + PI).rem_euclid(TWO_PI) - PI).abs() < epsilon);
     }
 
-    mod test_test {
+    mod helper_test {
         use std::panic::catch_unwind;
 
         use super::*;
