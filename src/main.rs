@@ -11,6 +11,7 @@ use bevy_inspector_egui::{
 use serde::{Deserialize, Serialize};
 
 const CONFIG_PATH: &str = "config.yaml";
+const TWO_PI: f32 = 2.0 * PI;
 
 // `InspectorOptions` are completely optional
 #[derive(Reflect, Resource, InspectorOptions, Serialize, Deserialize, Debug)]
@@ -53,8 +54,8 @@ fn main() {
         .add_system(input)
         .add_system(update_velocity)
         .add_system(friction)
-        .add_system(update_position)
-        .add_system(apply_rudder_changes)
+        .add_system(draw_ship)
+        .add_system(draw_rudder)
         .add_system(save_config)
         .run();
 }
@@ -117,30 +118,18 @@ fn update_velocity(
     let rudder = rudders.get_single().unwrap();
     for mut ship in query.iter_mut() {
         let constants = constants.as_ref();
-        let mut ship = ship.as_mut();
-        update_ship(constants, &mut ship, d_t, rudder);
+        let ship = ship.as_mut();
+        ship.update(constants, d_t, rudder);
     }
 }
 
-fn update_ship(constants: &Configuration, ship: &mut Ship, d_t: f32, rudder: &Rudder) {
-    let thrust_angle = ship.rotation + rudder.angle + PI / 2.0 + PI;
-
-    let force = Vec2::new(
-        -constants.base_thrust * thrust_angle.sin(),
-        constants.base_thrust * thrust_angle.cos(),
-    ) * ship.throttle;
-    ship.velocity += force * d_t;
-
-    let torque =
-        -rudder.angle.sin() * constants.boat_half_length * constants.base_thrust * ship.throttle;
-    ship.omega += torque * d_t;
-}
-
-fn update_position(mut t: Query<(&mut Transform, &Ship)>, time: Res<Time>) {
+fn draw_ship(mut t: Query<(&mut Transform, &Ship)>) {
     for (mut trans, ship) in t.iter_mut() {
-        trans.translation.x += ship.velocity.x * time.delta_seconds();
-        trans.translation.y += ship.velocity.y * time.delta_seconds();
-        trans.rotate_axis(Vec3::Z, ship.omega * time.delta_seconds())
+        trans.translation.x = ship.pos.x;
+        trans.translation.y = ship.pos.y;
+        let mut t = Transform::IDENTITY.clone();
+        t.rotate_axis(Vec3::Z, ship.rotation);
+        trans.rotation = t.rotation;
     }
 }
 
@@ -157,7 +146,7 @@ fn friction(mut ships: Query<&mut Ship>, time: Res<Time>, constants: Res<Configu
     }
 }
 
-fn apply_rudder_changes(mut rudders: Query<(&mut Transform, &Rudder)>) {
+fn draw_rudder(mut rudders: Query<(&mut Transform, &Rudder)>) {
     for (mut transform, rudder) in rudders.iter_mut() {
         let mut new =
             Transform::from_translation(Vec3::new(0., -130., 0.)).with_scale(Vec3::splat(0.2));
@@ -200,6 +189,28 @@ struct Ship {
     rotation: Radians,
     velocity: Vec2,
     omega: RadiansPerSec,
+    pos: Vec2,
+}
+
+impl Ship {
+    fn update(&mut self, constants: &Configuration, d_t: f32, rudder: &Rudder) {
+        let thrust_angle = self.rotation + (rudder.angle);
+
+        let force = Vec2::new(
+            -constants.base_thrust * thrust_angle.sin(),
+            constants.base_thrust * thrust_angle.cos(),
+        ) * self.throttle;
+        self.velocity += force * d_t;
+
+        let torque = -rudder.angle.sin()
+            * constants.boat_half_length
+            * constants.base_thrust
+            * self.throttle;
+        self.omega += torque * d_t;
+
+        self.pos += self.velocity * d_t;
+        self.rotation = self.omega * d_t;
+    }
 }
 
 impl Default for Ship {
@@ -209,6 +220,7 @@ impl Default for Ship {
             rotation: PI / 2.0,
             velocity: Vec2::default(),
             omega: 0.0,
+            pos: Vec2::default(),
         }
     }
 }
@@ -227,15 +239,69 @@ impl Default for Rudder {
 #[cfg(test)]
 mod test {
     use super::*;
+    use assert_float_eq::*;
+
     #[test]
-    fn boat() {
+    fn up() {
         let mut ship = Ship {
             throttle: 1.0,
             ..default()
         };
         let config = Configuration::default();
         let rudder = Rudder::default();
-        update_ship(&config, &mut ship, 1. / 60., &rudder);
-        assert!(ship.velocity.y > 0.0);
+        ship.update(&config, 1. / 60., &rudder);
+
+        assert!(ship.velocity.length() > 0.0);
+        assert_float_absolute_eq!(Vec2::X.angle_between(ship.velocity), PI / 2.0);
+    }
+
+    #[test]
+    fn left() {
+        let mut ship = Ship {
+            throttle: 1.0,
+            rotation: PI,
+            velocity: Vec2::default(),
+            omega: 0.0,
+            pos: Vec2::default(),
+        };
+        let config = Configuration::default();
+        let rudder = Rudder::default();
+
+        ship.update(&config, 1.0 / 60.0, &rudder);
+
+        assert!(ship.velocity.length() > 0.0);
+
+        assert_angles_eq(Vec2::X.angle_between(ship.velocity), PI);
+    }
+
+    fn assert_angles_eq(a: f32, b: f32) {
+        let epsilon = 1e-6;
+
+        assert!(((a - b + PI).rem_euclid(TWO_PI) - PI).abs() < epsilon);
+    }
+
+    mod test_test {
+        use std::panic::catch_unwind;
+
+        use super::*;
+        #[test]
+        fn zerp_and_zero() {
+            assert_angles_eq(0.0, 0.0);
+        }
+
+        #[test]
+        fn zero_and_half_turn() {
+            match catch_unwind(|| {
+                assert_angles_eq(0.0, PI);
+            }) {
+                Ok(()) => panic!("expected an assertion failure, but didn't get one"),
+                Err(_) => {}
+            }
+        }
+
+        #[test]
+        fn half_turn_and_many() {
+            assert_angles_eq(PI, 9.0 * PI);
+        }
     }
 }
